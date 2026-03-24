@@ -11,7 +11,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: true,
     credentials: true,
   }),
 );
@@ -20,9 +20,9 @@ app.use(express.json());
 
 app.use(
   session({
-    secret: "change_this_to_a_real_secret_later",
+    secret: "supersecretkey",
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
     cookie: {
       secure: false,
       httpOnly: true,

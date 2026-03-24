@@ -78,15 +78,47 @@ const loginUser = async (req, res) => {
       });
     }
 
+    if (user.mfa_enabled) {
+      req.session.mfa_pending = true;
+      req.session.mfa_user = {
+        id: user.id,
+        email: user.email,
+      };
+
+      return req.session.save((err) => {
+        if (err) {
+          console.error("Session save error during MFA step:", err);
+          return res.status(500).json({
+            message: "Server error.",
+          });
+        }
+
+        return res.status(200).json({
+          message: "MFA required.",
+          mfaRequired: true,
+        });
+      });
+    }
+
     req.session.user = {
       id: user.id,
       email: user.email,
       mfa_enabled: user.mfa_enabled,
     };
 
-    return res.status(200).json({
-      message: "Login successful.",
-      user: req.session.user,
+    return req.session.save((err) => {
+      if (err) {
+        console.error("Session save error during login:", err);
+        return res.status(500).json({
+          message: "Server error.",
+        });
+      }
+
+      return res.status(200).json({
+        message: "Login successful.",
+        mfaRequired: false,
+        user: req.session.user,
+      });
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -138,12 +170,28 @@ const setupMFA = async (req, res) => {
 
     req.session.temp_mfa_secret = secret.base32;
 
-    const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url);
+    return req.session.save(async (err) => {
+      if (err) {
+        console.error("Session save error during MFA setup:", err);
+        return res.status(500).json({
+          message: "Server error.",
+        });
+      }
 
-    return res.status(200).json({
-      message: "MFA setup initiated.",
-      qrCode: qrCodeDataURL,
-      secret: secret.base32,
+      try {
+        const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url);
+
+        return res.status(200).json({
+          message: "MFA setup initiated.",
+          qrCode: qrCodeDataURL,
+          secret: secret.base32,
+        });
+      } catch (qrError) {
+        console.error("QR code generation error:", qrError);
+        return res.status(500).json({
+          message: "Server error.",
+        });
+      }
     });
   } catch (error) {
     console.error("MFA setup error:", error);
@@ -199,8 +247,17 @@ const verifyMFASetup = async (req, res) => {
     req.session.user.mfa_enabled = true;
     delete req.session.temp_mfa_secret;
 
-    return res.status(200).json({
-      message: "MFA enabled successfully.",
+    return req.session.save((err) => {
+      if (err) {
+        console.error("Session save error after MFA verify:", err);
+        return res.status(500).json({
+          message: "Server error.",
+        });
+      }
+
+      return res.status(200).json({
+        message: "MFA enabled successfully.",
+      });
     });
   } catch (error) {
     console.error("MFA verification error:", error);
@@ -210,6 +267,81 @@ const verifyMFASetup = async (req, res) => {
   }
 };
 
+const loginWithMFA = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!req.session.mfa_pending || !req.session.mfa_user) {
+      return res.status(401).json({
+        message: "No MFA login in progress.",
+      });
+    }
+
+    if (!token) {
+      return res.status(400).json({
+        message: "OTP token is required.",
+      });
+    }
+
+    const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [
+      req.session.mfa_user.id,
+    ]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        message: "User not found.",
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    const verified = speakeasy.totp.verify({
+      secret: user.totp_secret,
+      encoding: "base32",
+      token,
+      window: 1,
+    });
+
+    if (!verified) {
+      return res.status(401).json({
+        message: "Invalid OTP code.",
+      });
+    }
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      mfa_enabled: user.mfa_enabled,
+    };
+
+    delete req.session.mfa_pending;
+    delete req.session.mfa_user;
+
+    return req.session.save((err) => {
+      if (err) {
+        console.error("Session save error during MFA login:", err);
+        return res.status(500).json({
+          message: "Server error.",
+        });
+      }
+
+      return res.status(200).json({
+        message: "MFA login successful.",
+        user: req.session.user,
+      });
+    });
+  } catch (error) {
+    console.error("MFA login error:", error);
+    return res.status(500).json({
+      message: "Server error.",
+    });
+  }
+};
+
+const debugSession = (req, res) => {
+  return res.status(200).json(req.session);
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -217,4 +349,6 @@ module.exports = {
   logoutUser,
   setupMFA,
   verifyMFASetup,
+  loginWithMFA,
+  debugSession,
 };

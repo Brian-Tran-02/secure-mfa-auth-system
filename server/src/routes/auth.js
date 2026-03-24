@@ -8,6 +8,8 @@ const {
   logoutUser,
   setupMFA,
   verifyMFASetup,
+  loginWithMFA,
+  debugSession,
 } = require("../controllers/authController");
 
 router.post("/register", registerUser);
@@ -17,5 +19,7 @@ router.post("/logout", logoutUser);
 
 router.post("/mfa/setup", setupMFA);
 router.post("/mfa/verify", verifyMFASetup);
+router.post("/mfa/login", loginWithMFA);
+router.get("/debug-session", debugSession);
 
 module.exports = router;
