@@ -1,5 +1,7 @@
 const bcrypt = require("bcrypt");
 const pool = require("../db");
+const speakeasy = require("speakeasy");
+const qrcode = require("qrcode");
 
 const SALT_ROUNDS = 10;
 
@@ -122,9 +124,97 @@ const logoutUser = (req, res) => {
   });
 };
 
+const setupMFA = async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(401).json({
+        message: "Not authenticated.",
+      });
+    }
+
+    const secret = speakeasy.generateSecret({
+      name: `Secure MFA Auth System (${req.session.user.email})`,
+    });
+
+    req.session.temp_mfa_secret = secret.base32;
+
+    const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url);
+
+    return res.status(200).json({
+      message: "MFA setup initiated.",
+      qrCode: qrCodeDataURL,
+      secret: secret.base32,
+    });
+  } catch (error) {
+    console.error("MFA setup error:", error);
+    return res.status(500).json({
+      message: "Server error.",
+    });
+  }
+};
+
+const verifyMFASetup = async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(401).json({
+        message: "Not authenticated.",
+      });
+    }
+
+    const { token } = req.body;
+    const tempSecret = req.session.temp_mfa_secret;
+
+    if (!token) {
+      return res.status(400).json({
+        message: "Verification code is required.",
+      });
+    }
+
+    if (!tempSecret) {
+      return res.status(400).json({
+        message: "No MFA setup in progress.",
+      });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: tempSecret,
+      encoding: "base32",
+      token,
+      window: 1,
+    });
+
+    if (!verified) {
+      return res.status(401).json({
+        message: "Invalid verification code.",
+      });
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET totp_secret = $1, mfa_enabled = TRUE
+       WHERE id = $2`,
+      [tempSecret, req.session.user.id],
+    );
+
+    req.session.user.mfa_enabled = true;
+    delete req.session.temp_mfa_secret;
+
+    return res.status(200).json({
+      message: "MFA enabled successfully.",
+    });
+  } catch (error) {
+    console.error("MFA verification error:", error);
+    return res.status(500).json({
+      message: "Server error.",
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getProfile,
   logoutUser,
+  setupMFA,
+  verifyMFASetup,
 };
