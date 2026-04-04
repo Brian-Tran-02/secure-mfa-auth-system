@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secure MFA Auth System</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">CSI4900 Project</p>
+          <h1>Secure Authentication System Using MFA</h1>
+          <p class="subtitle">
+            A simple web-based prototype for registration, login, profile access,
+            and multi-factor authentication setup.
+          </p>
+        </div>
+
+        <div class="api-box">
+          <label for="apiBase">API Base URL</label>
+          <input
+            id="apiBase"
+            type="text"
+            value="http://localhost:5000/api/auth"
+          />
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="card">
+          <h2>Register</h2>
+          <form id="registerForm" class="form">
+            <label>Email</label>
+            <input type="email" id="registerEmail" required />
+            <label>Password</label>
+            <input type="password" id="registerPassword" required />
+            <button type="submit">Create Account</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Login</h2>
+          <form id="loginForm" class="form">
+            <label>Email</label>
+            <input type="email" id="loginEmail" required />
+            <label>Password</label>
+            <input type="password" id="loginPassword" required />
+            <button type="submit">Login</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>MFA Login</h2>
+          <p class="muted">
+            Use this only after the normal login says MFA is required.
+          </p>
+          <form id="mfaLoginForm" class="form">
+            <label>Authenticator Code</label>
+            <input
+              type="text"
+              id="mfaLoginToken"
+              maxlength="6"
+              placeholder="Enter 6-digit code"
+              required
+            />
+            <button type="submit">Complete MFA Login</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Profile</h2>
+          <div class="actions">
+            <button id="profileBtn" type="button">Get Profile</button>
+            <button id="logoutBtn" type="button" class="secondary">Logout</button>
+          </div>
+          <pre id="profileOutput" class="output empty">No profile loaded.</pre>
+        </section>
+
+        <section class="card wide">
+          <h2>MFA Setup</h2>
+          <p class="muted">
+            Login first, then start MFA setup and scan the QR code with Google
+            Authenticator or another TOTP app.
+          </p>
+
+          <div class="actions">
+            <button id="setupMfaBtn" type="button">Start MFA Setup</button>
+          </div>
+
+          <div id="mfaSetupArea" class="mfa-area hidden">
+            <div class="qr-panel">
+              <img id="qrImage" alt="MFA QR Code" />
+            </div>
+
+            <div class="secret-panel">
+              <p><strong>Manual Secret:</strong></p>
+              <code id="secretText">No secret yet.</code>
+
+              <form id="verifyMfaForm" class="form mfa-verify-form">
+                <label>Enter code from app</label>
+                <input
+                  type="text"
+                  id="verifyMfaToken"
+                  maxlength="6"
+                  placeholder="Enter 6-digit code"
+                  required
+                />
+                <button type="submit">Enable MFA</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="card wide">
+          <h2>System Messages</h2>
+          <div id="messageBox" class="message info">
+            Ready.
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
