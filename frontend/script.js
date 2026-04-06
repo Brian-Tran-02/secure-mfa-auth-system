@@ -86,7 +86,10 @@ loginForm.addEventListener("submit", async (event) => {
     });
 
     if (data.mfaRequired) {
-      setMessage("MFA required. Please enter your OTP code in the MFA Login section.", "info");
+      setMessage(
+        "MFA required. Please enter your OTP code in the MFA Login section.",
+        "info",
+      );
       return;
     }
 
