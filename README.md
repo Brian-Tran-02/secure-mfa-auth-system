@@ -5,7 +5,7 @@ Node.js
 PostgreSQL
 
 
-Database setup
+Database setup (we used pgadmin to manage and test our database)
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
