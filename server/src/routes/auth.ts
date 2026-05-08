@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const {
+import {
   registerUser,
   loginUser,
   getProfile,
@@ -10,7 +10,7 @@ const {
   verifyMFASetup,
   loginWithMFA,
   debugSession,
-} = require("../controllers/authController");
+} from "../controllers/authController";
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);

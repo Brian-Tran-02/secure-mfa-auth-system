@@ -1,29 +1,23 @@
-const bcrypt = require("bcrypt");
-const pool = require("../db");
-const speakeasy = require("speakeasy");
-const qrcode = require("qrcode");
+import { Request, Response } from "express";
+import bcrypt from "bcrypt";
+import pool from "../db";
+import speakeasy from "speakeasy";
+import qrcode from "qrcode";
 
 const SALT_ROUNDS = 10;
 
-const registerUser = async (req, res) => {
+const registerUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required.",
-      });
+      return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const existingUser = await pool.query(
-      "SELECT id FROM users WHERE email = $1",
-      [email],
-    );
+    const existingUser = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
 
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({
-        message: "User already exists.",
-      });
+      return res.status(409).json({ message: "User already exists." });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -32,7 +26,7 @@ const registerUser = async (req, res) => {
       `INSERT INTO users (email, password_hash)
        VALUES ($1, $2)
        RETURNING id, email, created_at`,
-      [email, passwordHash],
+      [email, passwordHash]
     );
 
     return res.status(201).json({
@@ -41,41 +35,29 @@ const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
-    return res.status(500).json({
-      message: "Server error.",
-    });
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
-const loginUser = async (req, res) => {
+const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required.",
-      });
+      return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const userResult = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email],
-    );
+    const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (userResult.rows.length === 0) {
-      return res.status(401).json({
-        message: "Invalid credentials.",
-      });
+      return res.status(401).json({ message: "Invalid credentials." });
     }
 
     const user = userResult.rows[0];
-
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatch) {
-      return res.status(401).json({
-        message: "Invalid credentials.",
-      });
+      return res.status(401).json({ message: "Invalid credentials." });
     }
 
     if (user.mfa_enabled) {
@@ -85,12 +67,10 @@ const loginUser = async (req, res) => {
         email: user.email,
       };
 
-      return req.session.save((err) => {
+      return req.session.save((err: any) => {
         if (err) {
           console.error("Session save error during MFA step:", err);
-          return res.status(500).json({
-            message: "Server error.",
-          });
+          return res.status(500).json({ message: "Server error." });
         }
 
         return res.status(200).json({
@@ -106,12 +86,10 @@ const loginUser = async (req, res) => {
       mfa_enabled: user.mfa_enabled,
     };
 
-    return req.session.save((err) => {
+    return req.session.save((err: any) => {
       if (err) {
         console.error("Session save error during login:", err);
-        return res.status(500).json({
-          message: "Server error.",
-        });
+        return res.status(500).json({ message: "Server error." });
       }
 
       return res.status(200).json({
@@ -122,17 +100,13 @@ const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({
-      message: "Server error.",
-    });
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
-const getProfile = (req, res) => {
+const getProfile = (req: Request, res: Response) => {
   if (!req.session.user) {
-    return res.status(401).json({
-      message: "Not authenticated.",
-    });
+    return res.status(401).json({ message: "Not authenticated." });
   }
 
   return res.status(200).json({
@@ -141,27 +115,21 @@ const getProfile = (req, res) => {
   });
 };
 
-const logoutUser = (req, res) => {
-  req.session.destroy((err) => {
+const logoutUser = (req: Request, res: Response) => {
+  req.session.destroy((err: any) => {
     if (err) {
-      return res.status(500).json({
-        message: "Logout failed.",
-      });
+      return res.status(500).json({ message: "Logout failed." });
     }
 
     res.clearCookie("connect.sid");
-    return res.status(200).json({
-      message: "Logout successful.",
-    });
+    return res.status(200).json({ message: "Logout successful." });
   });
 };
 
-const setupMFA = async (req, res) => {
+const setupMFA = async (req: Request, res: Response) => {
   try {
     if (!req.session.user) {
-      return res.status(401).json({
-        message: "Not authenticated.",
-      });
+      return res.status(401).json({ message: "Not authenticated." });
     }
 
     const secret = speakeasy.generateSecret({
@@ -170,16 +138,14 @@ const setupMFA = async (req, res) => {
 
     req.session.temp_mfa_secret = secret.base32;
 
-    return req.session.save(async (err) => {
+    return req.session.save(async (err: any) => {
       if (err) {
         console.error("Session save error during MFA setup:", err);
-        return res.status(500).json({
-          message: "Server error.",
-        });
+        return res.status(500).json({ message: "Server error." });
       }
 
       try {
-        const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url);
+        const qrCodeDataURL = await qrcode.toDataURL(secret.otpauth_url ?? "");
 
         return res.status(200).json({
           message: "MFA setup initiated.",
@@ -188,40 +154,30 @@ const setupMFA = async (req, res) => {
         });
       } catch (qrError) {
         console.error("QR code generation error:", qrError);
-        return res.status(500).json({
-          message: "Server error.",
-        });
+        return res.status(500).json({ message: "Server error." });
       }
     });
   } catch (error) {
     console.error("MFA setup error:", error);
-    return res.status(500).json({
-      message: "Server error.",
-    });
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
-const verifyMFASetup = async (req, res) => {
+const verifyMFASetup = async (req: Request, res: Response) => {
   try {
     if (!req.session.user) {
-      return res.status(401).json({
-        message: "Not authenticated.",
-      });
+      return res.status(401).json({ message: "Not authenticated." });
     }
 
     const { token } = req.body;
     const tempSecret = req.session.temp_mfa_secret;
 
     if (!token) {
-      return res.status(400).json({
-        message: "Verification code is required.",
-      });
+      return res.status(400).json({ message: "Verification code is required." });
     }
 
     if (!tempSecret) {
-      return res.status(400).json({
-        message: "No MFA setup in progress.",
-      });
+      return res.status(400).json({ message: "No MFA setup in progress." });
     }
 
     const verified = speakeasy.totp.verify({
@@ -232,55 +188,43 @@ const verifyMFASetup = async (req, res) => {
     });
 
     if (!verified) {
-      return res.status(401).json({
-        message: "Invalid verification code.",
-      });
+      return res.status(401).json({ message: "Invalid verification code." });
     }
 
     await pool.query(
       `UPDATE users
        SET totp_secret = $1, mfa_enabled = TRUE
        WHERE id = $2`,
-      [tempSecret, req.session.user.id],
+      [tempSecret, req.session.user.id]
     );
 
     req.session.user.mfa_enabled = true;
     delete req.session.temp_mfa_secret;
 
-    return req.session.save((err) => {
+    return req.session.save((err: any) => {
       if (err) {
         console.error("Session save error after MFA verify:", err);
-        return res.status(500).json({
-          message: "Server error.",
-        });
+        return res.status(500).json({ message: "Server error." });
       }
 
-      return res.status(200).json({
-        message: "MFA enabled successfully.",
-      });
+      return res.status(200).json({ message: "MFA enabled successfully." });
     });
   } catch (error) {
     console.error("MFA verification error:", error);
-    return res.status(500).json({
-      message: "Server error.",
-    });
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
-const loginWithMFA = async (req, res) => {
+const loginWithMFA = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
 
     if (!req.session.mfa_pending || !req.session.mfa_user) {
-      return res.status(401).json({
-        message: "No MFA login in progress.",
-      });
+      return res.status(401).json({ message: "No MFA login in progress." });
     }
 
     if (!token) {
-      return res.status(400).json({
-        message: "OTP token is required.",
-      });
+      return res.status(400).json({ message: "OTP token is required." });
     }
 
     const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [
@@ -288,9 +232,7 @@ const loginWithMFA = async (req, res) => {
     ]);
 
     if (userResult.rows.length === 0) {
-      return res.status(401).json({
-        message: "User not found.",
-      });
+      return res.status(401).json({ message: "User not found." });
     }
 
     const user = userResult.rows[0];
@@ -303,9 +245,7 @@ const loginWithMFA = async (req, res) => {
     });
 
     if (!verified) {
-      return res.status(401).json({
-        message: "Invalid OTP code.",
-      });
+      return res.status(401).json({ message: "Invalid OTP code." });
     }
 
     req.session.user = {
@@ -317,12 +257,10 @@ const loginWithMFA = async (req, res) => {
     delete req.session.mfa_pending;
     delete req.session.mfa_user;
 
-    return req.session.save((err) => {
+    return req.session.save((err: any) => {
       if (err) {
         console.error("Session save error during MFA login:", err);
-        return res.status(500).json({
-          message: "Server error.",
-        });
+        return res.status(500).json({ message: "Server error." });
       }
 
       return res.status(200).json({
@@ -332,17 +270,15 @@ const loginWithMFA = async (req, res) => {
     });
   } catch (error) {
     console.error("MFA login error:", error);
-    return res.status(500).json({
-      message: "Server error.",
-    });
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
-const debugSession = (req, res) => {
+const debugSession = (req: Request, res: Response) => {
   return res.status(200).json(req.session);
 };
 
-module.exports = {
+export {
   registerUser,
   loginUser,
   getProfile,
